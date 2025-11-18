@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VS Code Navigation Bar Clone</title>
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="main-header">
+    <h1>VS Code Navigation Bar Clone</h1>
+    <i class="fas fa-rocket fa-2x icon"></i>
+  </header>
+  <div class="sidebar">
+    <button class="nav-item active" data-panel="explorer">
+      <i class="fas fa-file"></i>
+    </button>
+    <button class="nav-item" data-panel="search">
+      <i class="fas fa-search"></i>
+    </button>
+    <button class="nav-item" data-panel="git">
+      <i class="fas fa-code-branch"></i>
+    </button>
+    <button class="nav-item" data-panel="debug">
+      <i class="fas fa-play"></i>
+    </button>
+    <button class="nav-item" data-panel="extensions">
+      <i class="fas fa-cube"></i>
+    </button>
+  </div>
+
+  <main class="panel-container">
+    <section id="explorer" class="panel active">
+      <h2>📁 Explorer</h2>
+      <p>Browse and manage your project files here. This panel allows you to navigate through your entire project structure with ease.</p>
+      <ul style="margin-top: 15px; margin-left: 20px;">
+        <li>Open files quickly</li>
+        <li>Create new files/folders</li>
+        <li>Delete or rename items</li>
+        <li>Search within files</li>
+      </ul>
+    </section>
+    <section id="search" class="panel">
+      <h2>🔍 Search</h2>
+      <p>Find text, symbols, and references across your entire workspace. Advanced search options allow you to refine your queries.</p>
+      <ul style="margin-top: 15px; margin-left: 20px;">
+        <li>Find in files</li>
+        <li>Replace all occurrences</li>
+        <li>Regular expression support</li>
+        <li>Search history</li>
+      </ul>
+    </section>
+    <section id="git" class="panel">
+      <h2>🌿 Git</h2>
+      <p>Manage version control directly from VS Code. View commits, branches, and track changes to your repository.</p>
+      <ul style="margin-top: 15px; margin-left: 20px;">
+        <li>View commit history</li>
+        <li>Manage branches</li>
+        <li>Stage and commit changes</li>
+        <li>Sync with remote</li>
+      </ul>
+    </section>
+    <section id="debug" class="panel">
+      <h2>▶️ Debug</h2>
+      <p>Debug your applications with breakpoints, watches, and a powerful debugger console for all major languages.</p>
+      <ul style="margin-top: 15px; margin-left: 20px;">
+        <li>Set breakpoints</li>
+        <li>Step through code</li>
+        <li>Watch variables</li>
+        <li>Debug console</li>
+      </ul>
+    </section>
+    <section id="extensions" class="panel">
+      <h2>🧩 Extensions</h2>
+      <p>Discover and install thousands of extensions to enhance your VS Code experience with new features and themes.</p>
+      <ul style="margin-top: 15px; margin-left: 20px;">
+        <li>Browse marketplace</li>
+        <li>Install extensions</li>
+        <li>Manage updates</li>
+        <li>Enable/disable features</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2025</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
