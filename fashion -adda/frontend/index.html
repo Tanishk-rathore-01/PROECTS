@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fashion Adda - Latest Fashion Trends</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <nav class="nav">
+            <div class="nav-brand">
+                <span class="logo-icon">🧏‍♂️🤦 </span>
+                <h1>Fashion Adda</h1>
+            </div>
+            
+            <div class="nav-search">
+                <input type="text" id="searchInput" placeholder="Search for outfits, accessories...">
+                <button class="search-btn">🔍</button>
+            </div>
+
+            <div class="nav-actions">
+                <span id="userWelcome" class="user-welcome"></span>
+                <button id="cartBtn" class="cart-btn">
+                    🛒 Cart <span id="cartCount" class="cart-count">0</span>
+                </button>
+                <button id="logoutBtn" class="logout-btn">Logout</button>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <h2 class="hero-title">Discover Your Style</h2>
+            <p class="hero-subtitle">Curated collection of traditional and western wear</p>
+            <!--<button class="cta-button">Shop Now</button>-->
+        </div>
+    </section>
+
+    <div id="notification" class="notification"></div>
+
+    <!-- Main Content -->
+    <main class="main">
+        <section class="categories">
+            <h3>Shop by Category</h3>
+            <div class="category-filters">
+                <button class="filter-btn active" data-category="all">All</button>
+                <button class="filter-btn" data-category="Traditional">Traditional</button>
+                <button class="filter-btn" data-category="Western">Western</button>
+                <button class="filter-btn" data-category="Indo-Western">Indo-Western</button>
+            </div>
+        </section>
+
+        <section class="products">
+            <h3>Featured Collection</h3>
+            <div id="productsGrid" class="products-grid">
+                <!-- Products will be loaded here -->
+            </div>
+        </section>
+    </main>
+
+    <!-- Cart Sidebar -->
+    <div id="cartSidebar" class="cart-sidebar">
+        <div class="cart-header">
+            <h3>Your Shopping Cart</h3>
+            <button id="closeCart" class="close-cart">×</button>
+        </div>
+        <div id="cartItems" class="cart-items">
+            <!-- Cart items will be loaded here -->
+        </div>
+        <div class="cart-footer">
+            <div class="cart-total">
+                Total: ₹<span id="cartTotal">0</span>
+            </div>
+            <button id="checkoutBtn" class="checkout-btn">Proceed to Checkout</button>
+        </div>
+    </div>
+
+    <!-- Product Modal -->
+    <div id="productModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- Overlay -->
+    <div id="overlay" class="overlay"></div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>Fashion Adda</h4>
+                <p>Your one-stop destination for trendy fashion</p>
+            </div>
+            <div class="footer-section">
+                <h4>Contact</h4>
+                <p>Email: support@fashionadda.com</p>
+                <p>Phone: +91 9876543210</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2024 Fashion Adda. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
