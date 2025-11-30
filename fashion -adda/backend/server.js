@@ -1,5 +1,7 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
@@ -7,227 +9,204 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
-const JWT_SECRET = 'fashion_adda_secret_key_2024';
+const JWT_SECRET = process.env.JWT_SECRET || 'fashion_adda_secret_key_2024';
 
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-// Serve front-end static files
-const frontEndPath = path.join(__dirname, '..', 'frontend');
-console.log('Serving front-end from:', frontEndPath);
+// Static frontend served from ./frontend
+const frontEndPath = path.join(__dirname, 'frontend');
 if (fs.existsSync(frontEndPath)) {
   app.use(express.static(frontEndPath));
-  app.get('/', (req, res) => res.sendFile(path.join(frontEndPath, 'index.html')));
-  app.get('/login', (req, res) => res.sendFile(path.join(frontEndPath, 'login.html')));
 }
 
-// Load products from data file
-const productsPath = path.join(__dirname, '..', 'data', 'product.json');
+// Load products data (fallback to empty array)
+const productsPath = path.join(__dirname, 'data', 'product.json');
 let products = [];
 try {
-  const raw = fs.readFileSync(productsPath, 'utf8');
-  products = JSON.parse(raw);
+  if (fs.existsSync(productsPath)) {
+    const raw = fs.readFileSync(productsPath, 'utf8');
+    products = JSON.parse(raw);
+  } else {
+    console.warn('products.json not found, starting with empty product list.');
+  }
 } catch (err) {
-  console.error(`Error: Could not load products from ${productsPath}. Please check if the file exists and is valid JSON.`, err.message);
-  // exit gracefully
-  process.exit(1);
+  console.error('Failed to parse products:', err.message);
 }
 
-let db;
-try {
-  db = require('./database.js');
-} catch (e) {
-  console.error("Failed to load database:", e.message);
-  process.exit(1);
-}
+const db = require('./database');
 
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'No token provided' });
 
-  if (token == null) return res.sendStatus(401);
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403);
-    req.user = user;
+  jwt.verify(token, JWT_SECRET, (err, payload) => {
+    if (err) return res.status(403).json({ error: 'Invalid token' });
+    req.user = payload; // { userId, email }
     next();
   });
 };
 
-// API: User login
-app.post('/api/login', (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) {
-        return res.status(400).json({ "error": "Email and password are required" });
-    }
-    const sql = "SELECT * FROM users WHERE email = ?";
-    db.get(sql, [email], (err, user) => {
-        if (err) {
-            res.status(500).json({ "error": err.message });
-            return;
-        }
-        if (!user) {
-            return res.status(401).json({ error: 'Invalid email or password' });
-        }
-
-        const passwordMatch = bcrypt.compareSync(password, user.password);
-        if (!passwordMatch) {
-            return res.status(401).json({ error: 'Invalid email or password' });
-        }
-
-        const token = jwt.sign(
-            { userId: user.id, email: user.email },
-            JWT_SECRET,
-            { expiresIn: '24h' }
-        );
-
-        res.json({
-            message: "Login successful",
-            token,
-            user: { id: user.id, name: user.name, email: user.email }
-        });
-    });
+// Helper to find user by email
+const getUserByEmail = (email) => new Promise((resolve, reject) => {
+  db.get('SELECT * FROM users WHERE email = ?', [email], (err, row) => {
+    if (err) return reject(err);
+    resolve(row);
+  });
 });
 
-// API: User registration
-app.post('/api/register', (req, res) => {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password) {
-        return res.status(400).json({ "error": "Name, email and password are required" });
+// Register route
+app.post('/api/register', async (req, res) => {
+  const { name, email, password } = req.body;
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'Name, email, and password are required' });
+  }
+  try {
+    const existingUser = await getUserByEmail(email);
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists' });
     }
-
     const salt = bcrypt.genSaltSync(10);
     const hashedPassword = bcrypt.hashSync(password, salt);
-
-    const checkUserSql = 'SELECT * FROM users WHERE email = ?';
-    db.get(checkUserSql, [email], (err, row) => {
-        if (err) {
-            res.status(500).json({ "error": err.message });
-            return;
-        }
-
-        if (row) {
-            res.status(409).json({ "error": "User with this email already exists." });
-            return;
-        }
-
-        const insertSql = 'INSERT INTO users (name, email, password) VALUES (?,?,?)';
-        db.run(insertSql, [name, email, hashedPassword], function(err) {
-            if (err) {
-                res.status(400).json({ "error": err.message });
-                return;
-            }
-            res.json({
-                "message": "User registered successfully",
-                "userId": this.lastID
-            });
-        });
+    const insert = 'INSERT INTO users (name, email, password) VALUES (?, ?, ?)';
+    db.run(insert, [name, email, hashedPassword], function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'Failed to create user' });
+      }
+      res.status(201).json({ message: 'User created' });
     });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
-// API: Verify token
+// Login route
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+  try {
+    const user = await getUserByEmail(email);
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid email or password' });
+    }
+    const isMatch = bcrypt.compareSync(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ error: 'Invalid email or password' });
+    }
+    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Verify token route
 app.get('/api/verify', authenticateToken, (req, res) => {
-  res.json({ valid: true, user: req.user });
+  res.json({ message: 'Token is valid', user: req.user });
 });
 
-// Protected API: list products
+// Products route
 app.get('/api/products', authenticateToken, (req, res) => {
   res.json(products);
 });
 
-// Protected API: get product details
-app.get('/api/products/:id', authenticateToken, (req, res) => {
-  const id = parseInt(req.params.id);
-  const product = products.find(p => p.id === id);
-  if (!product) {
-    return res.status(404).json({ error: 'Product not found' });
-  }
-  res.json(product);
-});
-
-// In-memory cart for demo
-let userCarts = {};
-
-// Protected API: get user cart
+// Get cart for the user
 app.get('/api/cart', authenticateToken, (req, res) => {
   const userId = req.user.userId;
-  const cart = userCarts[userId] || [];
-  res.json(cart);
+  const sql = `
+    SELECT cart.id, cart.quantity, products.id as productId, products.name, products.price, products.image 
+    FROM cart 
+    JOIN products ON cart.product_id = products.id 
+    WHERE cart.user_id = ?
+  `;
+  db.all(sql, [userId], (err, rows) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ error: 'Failed to fetch cart' });
+    }
+    // Format the response to match what the frontend expects
+    const cartItems = rows.map(row => ({
+      id: row.id,
+      product: {
+        id: row.productId,
+        name: row.name,
+        price: row.price,
+        image: row.image
+      },
+      quantity: row.quantity
+    }));
+    res.json(cartItems);
+  });
 });
 
-// Protected API: add to cart
+// Add to cart
 app.post('/api/cart', authenticateToken, (req, res) => {
   const userId = req.user.userId;
-  const { productId, quantity = 1 } = req.body;
-  
-  const product = products.find(p => p.id === parseInt(productId));
+  const { productId, quantity } = req.body;
+
+  // Check if the product exists
+  const product = products.find(p => p.id === productId);
   if (!product) {
     return res.status(404).json({ error: 'Product not found' });
   }
-
-  if (!userCarts[userId]) {
-    userCarts[userId] = [];
-  }
-
-  const existingItem = userCarts[userId].find(item => item.product.id === parseInt(productId));
-  if (existingItem) {
-    existingItem.quantity += parseInt(quantity);
-  } else {
-    userCarts[userId].push({
-      id: Date.now().toString(),
-      product: product,
-      quantity: parseInt(quantity)
-    });
-  }
-
-  res.json(userCarts[userId]);
+  // Cart routes
+app.get('/api/cart', authenticateToken, (req, res) => {
+  // Return user's cart (you'll need to implement cart storage)
+  res.json([]);
 });
 
-// Protected API: remove from cart
-app.delete('/api/cart/:itemId', authenticateToken, (req, res) => {
-  const userId = req.user.userId;
-  const itemId = req.params.itemId;
-
-  if (!userCarts[userId]) {
-    userCarts[userId] = [];
-  }
-
-  userCarts[userId] = userCarts[userId].filter(item => item.id !== itemId);
-  res.json(userCarts[userId]);
+app.post('/api/cart', authenticateToken, (req, res) => {
+  const { productId, quantity } = req.body;
+  // Add product to cart logic here
+  res.json({ message: 'Product added to cart' });
 });
 
-// Protected API: checkout
-app.post('/api/orders', authenticateToken, (req, res) => {
-  const userId = req.user.userId;
-  const cart = userCarts[userId] || [];
-
-  if (cart.length === 0) {
-    return res.status(400).json({ error: 'Cart is empty' });
-  }
-
-  const total = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-  const order = {
-    orderId: Date.now(),
-    items: cart,
-    total: total,
-    placedAt: new Date().toISOString()
-  };
-
-  // Clear cart after order
-  userCarts[userId] = [];
-  
-  res.json(order);
+app.put('/api/cart', authenticateToken, (req, res) => {
+  const { productId, quantity } = req.body;
+  // Update cart quantity logic here
+  res.json({ message: 'Cart updated' });
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`Fashion Adda server running on http://localhost:${PORT}`);
+app.delete('/api/cart/:productId', authenticateToken, (req, res) => {
+  const { productId } = req.params;
+  // Remove product from cart logic here
+  res.json({ message: 'Product removed from cart' });
 });
 
-server.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`Error: Port ${PORT} is already in use. Please check if another process is running on this port and stop it if necessary.`);
-  } else {
-    console.error('An error occurred while starting the server:', err);
-  }
-  process.exit(1);
+  // Check if the item is already in the cart
+  const checkSql = `SELECT * FROM cart WHERE user_id = ? AND product_id = ?`;
+  db.get(checkSql, [userId, productId], (err, row) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (row) {
+      // Update quantity
+      const updateSql = `UPDATE cart SET quantity = quantity + ? WHERE user_id = ? AND product_id = ?`;
+      db.run(updateSql, [quantity, userId, productId], function(err) {
+        if (err) {
+          console.error(err);
+          return res.status(500).json({ error: 'Failed to update cart' });
+        }
+        res.json({ message: 'Cart updated' });
+      });
+    } else {
+      // Insert new item
+      const insertSql = `INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?)`;
+      db.run(insertSql, [userId, productId, quantity], function(err) {
+        if (err) {
+          console.error(err);
+          return res.status(500).json({ error: 'Failed to add to cart' });
+        }
+        res.status(201).json({ message: 'Added to cart' });
+      });
+    }
+  });
 });
+
+app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

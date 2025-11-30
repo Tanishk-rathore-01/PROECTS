@@ -1,66 +1,58 @@
+const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 
-const DBSOURCE = "fashion-adda.db";
+const DB_FILE = path.join(__dirname, 'fashion-adda.db');
 
-let db;
+const db = new sqlite3.Database(DB_FILE, (err) => {
+  if (err) {
+    console.error('Failed to open DB:', err.message);
+    throw err;
+  }
+  console.log('Connected to SQLite DB at', DB_FILE);
+});
 
-try {
-  db = new sqlite3.Database(DBSOURCE, (err) => {
-      if (err) {
-        // Cannot open database
-        console.error("Error opening database:", err.message);
-        throw err;
-      } else {
-          console.log('Connected to the SQLite database.');
-          try {
-            db.run(`CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name text, 
-                email text UNIQUE, 
-                password text, 
-                CONSTRAINT email_unique UNIQUE (email)
-                )`,
-            (err) => {
-                if (err) {
-                    // Table already created
-                    console.error("Error creating table:", err.message);
-                } else {
-                    // Table just created, check if default users exist before inserting
-                    const salt = bcrypt.genSaltSync(10);
-                    const insert = 'INSERT INTO users (name, email, password) VALUES (?,?,?)';
+const init = () => {
+  const createUsers = `
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      email TEXT UNIQUE,
+      password TEXT
+    );
+  `;
 
-                    // Check for admin user
-                    db.get("SELECT email FROM users WHERE email = ?", ["admin@example.com"], (err, row) => {
-                        if (err) {
-                            console.error("Error checking for admin user:", err.message);
-                            return;
-                        }
-                        if (!row) {
-                            db.run(insert, ["admin", "admin@example.com", bcrypt.hashSync("admin123456", salt)]);
-                        }
-                    });
+  const createCart = `
+    CREATE TABLE IF NOT EXISTS cart (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      product_id INTEGER,
+      quantity INTEGER DEFAULT 1,
+      FOREIGN KEY (user_id) REFERENCES users (id)
+    );
+  `;
 
-                    // Check for regular user
-                    db.get("SELECT email FROM users WHERE email = ?", ["user@example.com"], (err, row) => {
-                        if (err) {
-                            console.error("Error checking for user:", err.message);
-                            return;
-                        }
-                        if (!row) {
-                            db.run(insert, ["user", "user@example.com", bcrypt.hashSync("user123456", salt)]);
-                        }
-                    });
-                }
-            });
-          } catch (e) {
-            console.error("Error creating table:", e.message);
-          }
-      }
+  db.run(createUsers, (err) => {
+    if (err) {
+      console.error('Error creating users table:', err.message);
+      return;
+    }
+
+    // Insert demo users only if not present
+    const salt = bcrypt.genSaltSync(10);
+    const insert = 'INSERT OR IGNORE INTO users (id, name, email, password) VALUES (?, ?, ?, ?)';
+
+    db.run(insert, [1, 'admin', 'admin@example.com', bcrypt.hashSync('admin123456', salt)]);
+    db.run(insert, [2, 'user', 'user@example.com', bcrypt.hashSync('user123456', salt)]);
   });
-} catch (e) {
-  console.error("Error connecting to database:", e.message);
-  throw e;
-}
+
+  db.run(createCart, (err) => {
+    if (err) {
+      console.error('Error creating cart table:', err.message);
+    }
+  });
+};
+
+init();
 
 module.exports = db;
