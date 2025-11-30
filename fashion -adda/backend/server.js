@@ -21,18 +21,58 @@ if (fs.existsSync(frontEndPath)) {
   app.use(express.static(frontEndPath));
 }
 
-// Load products data (fallback to empty array)
-const productsPath = path.join(__dirname, 'data', 'product.json');
+// Load products data with multiple fallback options
 let products = [];
-try {
-  if (fs.existsSync(productsPath)) {
+const possiblePaths = [
+  path.join(__dirname, 'product.json'),
+  path.join(__dirname, 'data', 'product.json'),
+  path.join(process.cwd(), 'product.json'),
+  path.join(process.cwd(), 'data', 'product.json')
+];
+
+let productsPath = null;
+
+for (const testPath of possiblePaths) {
+  if (fs.existsSync(testPath)) {
+    productsPath = testPath;
+    console.log('Found product.json at:', productsPath);
+    break;
+  }
+}
+
+if (productsPath) {
+  try {
     const raw = fs.readFileSync(productsPath, 'utf8');
     products = JSON.parse(raw);
-  } else {
-    console.warn('products.json not found, starting with empty product list.');
+    console.log(`Loaded ${products.length} products successfully`);
+  } catch (err) {
+    console.error('Failed to parse products:', err.message);
   }
-} catch (err) {
-  console.error('Failed to parse products:', err.message);
+} else {
+  console.warn('product.json not found in any of these locations:');
+  possiblePaths.forEach(p => console.warn('  -', p));
+  console.warn('Starting with empty product list.');
+  
+  // Create a sample product.json file if it doesn't exist
+  const defaultProducts = [
+    {
+      "id": 1,
+      "name": "Sample Product",
+      "price": 999,
+      "description": "This is a sample product. Please check your product.json file.",
+      "category": "Western",
+      "image": "https://via.placeholder.com/300"
+    }
+  ];
+  
+  const createPath = path.join(__dirname, 'product.json');
+  try {
+    fs.writeFileSync(createPath, JSON.stringify(defaultProducts, null, 2));
+    console.log('Created sample product.json file at:', createPath);
+    products = defaultProducts;
+  } catch (err) {
+    console.error('Failed to create sample product.json:', err.message);
+  }
 }
 
 const db = require('./database');
@@ -153,29 +193,6 @@ app.post('/api/cart', authenticateToken, (req, res) => {
   if (!product) {
     return res.status(404).json({ error: 'Product not found' });
   }
-  // Cart routes
-app.get('/api/cart', authenticateToken, (req, res) => {
-  // Return user's cart (you'll need to implement cart storage)
-  res.json([]);
-});
-
-app.post('/api/cart', authenticateToken, (req, res) => {
-  const { productId, quantity } = req.body;
-  // Add product to cart logic here
-  res.json({ message: 'Product added to cart' });
-});
-
-app.put('/api/cart', authenticateToken, (req, res) => {
-  const { productId, quantity } = req.body;
-  // Update cart quantity logic here
-  res.json({ message: 'Cart updated' });
-});
-
-app.delete('/api/cart/:productId', authenticateToken, (req, res) => {
-  const { productId } = req.params;
-  // Remove product from cart logic here
-  res.json({ message: 'Product removed from cart' });
-});
 
   // Check if the item is already in the cart
   const checkSql = `SELECT * FROM cart WHERE user_id = ? AND product_id = ?`;
@@ -206,6 +223,55 @@ app.delete('/api/cart/:productId', authenticateToken, (req, res) => {
         res.status(201).json({ message: 'Added to cart' });
       });
     }
+  });
+});
+
+// Update cart quantity
+app.put('/api/cart', authenticateToken, (req, res) => {
+  const userId = req.user.userId;
+  const { productId, quantity } = req.body;
+
+  // Check if the product exists
+  const product = products.find(p => p.id === productId);
+  if (!product) {
+    return res.status(404).json({ error: 'Product not found' });
+  }
+
+  if (quantity <= 0) {
+    // Remove item if quantity is 0 or less
+    const deleteSql = `DELETE FROM cart WHERE user_id = ? AND product_id = ?`;
+    db.run(deleteSql, [userId, productId], function(err) {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Failed to remove from cart' });
+      }
+      res.json({ message: 'Item removed from cart' });
+    });
+  } else {
+    // Update quantity
+    const updateSql = `UPDATE cart SET quantity = ? WHERE user_id = ? AND product_id = ?`;
+    db.run(updateSql, [quantity, userId, productId], function(err) {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Failed to update cart' });
+      }
+      res.json({ message: 'Cart updated' });
+    });
+  }
+});
+
+// Remove from cart
+app.delete('/api/cart/:productId', authenticateToken, (req, res) => {
+  const userId = req.user.userId;
+  const productId = req.params.productId;
+
+  const deleteSql = `DELETE FROM cart WHERE user_id = ? AND product_id = ?`;
+  db.run(deleteSql, [userId, productId], function(err) {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ error: 'Failed to remove from cart' });
+    }
+    res.json({ message: 'Item removed from cart' });
   });
 });
 
