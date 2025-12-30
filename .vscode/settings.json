@@ -1,3 +1,10 @@
 {
-    "liveServer.settings.port": 5501
+    "liveServer.settings.port": 5501,
+    "editor.fontSize": 16,
+    "editor.formatOnSave": true,
+    "editor.cursorBlinking": "smooth",
+    "editor.cursorHeight": 0,
+    "editor.cursorSmoothCaretAnimation": "on",
+    "editor.cursorStyle": "line-thin",
+    "code-runner.runInTerminal": true
 }
